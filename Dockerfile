@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o main .
+RUN go build -o main ./cmd/server  # Modified this line to point to the correct path
 
 RUN echo '#!/bin/bash\n\
 if [ -z "$YOUTUBE_API_KEYS" ]; then\n\
