@@ -3,6 +3,8 @@ package api
 import (
     "context"
     "net/http"
+    "sync"
+    "time"
     "youtube-fetcher/internal/config"
     "youtube-fetcher/internal/database"
     "youtube-fetcher/internal/youtube"
@@ -12,19 +14,60 @@ import (
     "github.com/go-chi/cors"
 )
 
+type rateLimiter struct {
+    sync.Mutex
+    requests map[string][]time.Time
+}
+
+func newRateLimiter() *rateLimiter {
+    return &rateLimiter{
+        requests: make(map[string][]time.Time),
+    }
+}
+
+func (rl *rateLimiter) Allow(ip string) bool {
+    rl.Lock()
+    defer rl.Unlock()
+
+    now := time.Now()
+    window := now.Add(-time.Minute)
+
+    if _, exists := rl.requests[ip]; !exists {
+        rl.requests[ip] = []time.Time{}
+    }
+
+    requests := rl.requests[ip]
+    valid := requests[:0]
+    for _, t := range requests {
+        if t.After(window) {
+            valid = append(valid, t)
+        }
+    }
+    rl.requests[ip] = valid
+
+    if len(valid) >= 100 {
+        return false
+    }
+
+    rl.requests[ip] = append(rl.requests[ip], now)
+    return true
+}
+
 type Server struct {
-    cfg     *config.Config
-    db      *database.DB
-    youtube *youtube.Client
-    router  *chi.Mux
+    cfg         *config.Config
+    db          *database.DB
+    youtube     *youtube.Client
+    router      *chi.Mux
+    rateLimiter *rateLimiter
 }
 
 func NewServer(cfg *config.Config, db *database.DB, yt *youtube.Client) *Server {
     s := &Server{
-        cfg:     cfg,
-        db:      db,
-        youtube: yt,
-        router:  chi.NewRouter(),
+        cfg:         cfg,
+        db:          db,
+        youtube:     yt,
+        router:      chi.NewRouter(),
+        rateLimiter: newRateLimiter(),
     }
 
     s.setupRoutes()

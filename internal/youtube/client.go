@@ -18,6 +18,9 @@ type Client struct {
 }
 
 func NewClient(apiKeys []string) *Client {
+	if len(apiKeys) == 0 {
+		log.Fatal("No YouTube API keys provided")
+	}
 	return &Client{
 		apiKeys:        apiKeys,
 		currentKeyIndex: 0,
@@ -30,6 +33,12 @@ func (c *Client) getNextAPIKey() string {
 }
 
 func (c *Client) FetchAndStoreVideos(query string, db *database.DB) error {
+    // Clean old videos
+    if _, err := db.Exec(`DELETE FROM videos WHERE published_at < $1`, 
+        time.Now().Add(-24*time.Hour)); err != nil {
+        return fmt.Errorf("error clearing old videos: %v", err)
+    }
+
     service, err := youtube.NewService(context.Background(), option.WithAPIKey(c.apiKeys[c.currentKeyIndex]))
     if err != nil {
         c.getNextAPIKey()
@@ -38,7 +47,7 @@ func (c *Client) FetchAndStoreVideos(query string, db *database.DB) error {
 
     publishedAfter := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
     
-     call := service.Search.List([]string{"id", "snippet"}).
+    call := service.Search.List([]string{"id", "snippet"}).
         Q(query).
         Type("video").
         Order("date").

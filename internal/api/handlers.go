@@ -6,13 +6,13 @@ import (
     "log"
     "net/http"
     "strconv"
-    "youtube-fetcher/internal/models"
 )
 
 func (s *Server) handleGetVideos(w http.ResponseWriter, r *http.Request) {
-    if err := s.db.Ping(); err != nil {
-        log.Printf("Database connection error: %v", err)
-        http.Error(w, "Database connection error", http.StatusInternalServerError)
+    // Rate limiting check
+    clientIP := r.RemoteAddr
+    if !s.rateLimiter.Allow(clientIP) {
+        http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
         return
     }
 
@@ -38,27 +38,28 @@ func (s *Server) handleGetVideos(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if videos == nil {
-        videos = []models.Video{} 
-    }
-
-    totalPages := (total + perPage - 1) / perPage
-
-    response := models.PaginatedResponse{
+    response := struct {
+        Videos     interface{} `json:"videos"`
+        Pagination struct {
+            CurrentPage int `json:"current_page"`
+            TotalPages  int `json:"total_pages"`
+            TotalItems  int `json:"total_items"`
+        } `json:"pagination"`
+    }{
         Videos: videos,
-        Pagination: models.Pagination{
+        Pagination: struct {
+            CurrentPage int `json:"current_page"`
+            TotalPages  int `json:"total_pages"`
+            TotalItems  int `json:"total_items"`
+        }{
             CurrentPage: page,
-            TotalPages:  totalPages,
+            TotalPages:  (total + perPage - 1) / perPage,
             TotalItems:  total,
         },
     }
 
     w.Header().Set("Content-Type", "application/json")
-    if err := json.NewEncoder(w).Encode(response); err != nil {
-        log.Printf("Error encoding response: %v", err)
-        http.Error(w, "Error encoding response", http.StatusInternalServerError)
-        return
-    }
+    json.NewEncoder(w).Encode(response)
 }
 
 func (s *Server) handleHealthCheck(w http.ResponseWriter, r *http.Request) {
