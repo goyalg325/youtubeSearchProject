@@ -1,9 +1,7 @@
 # Dockerfile
-FROM golang:1.21-alpine
+FROM golang:1.21
 
 WORKDIR /app
-
-RUN apk add --no-cache gcc musl-dev bash
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,21 +9,19 @@ RUN go mod download
 COPY . .
 RUN go build -o main .
 
-COPY <<EOF /app/docker-entrypoint.sh
-
-if [ -z "\$YOUTUBE_API_KEYS" ]; then
-    echo "Please enter your YouTube API keys (comma-separated for multiple keys):"
-    read api_keys
-    export YOUTUBE_API_KEYS=\$api_keys
-fi
-
-echo "Starting application with configuration:"
-echo "YouTube API Keys: \$YOUTUBE_API_KEYS"
-echo "Search Query: \$SEARCH_QUERY"
-echo "Fetch Interval: \$FETCH_INTERVAL seconds"
-
-exec ./main
-EOF
+RUN echo '#!/bin/bash\n\
+if [ -z "$YOUTUBE_API_KEYS" ]; then\n\
+    echo "Please enter your YouTube API keys (comma-separated for multiple keys):"\n\
+    read api_keys\n\
+    export YOUTUBE_API_KEYS=$api_keys\n\
+fi\n\
+\n\
+echo "Starting application with configuration:"\n\
+echo "YouTube API Keys: $YOUTUBE_API_KEYS"\n\
+echo "Search Query: $SEARCH_QUERY"\n\
+echo "Fetch Interval: $FETCH_INTERVAL seconds"\n\
+\n\
+exec ./main' > /app/docker-entrypoint.sh
 
 RUN chmod +x /app/docker-entrypoint.sh
 
