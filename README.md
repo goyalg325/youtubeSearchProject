@@ -151,7 +151,7 @@ youtube_fetcher/
 │       └── main.go
 ├── internal/
 │   ├── api/
-│   │   ├── server.go
+│   │   ├── routes.go
 │   │   └── handlers.go
 │   ├── config/
 │   │   └── config.go
@@ -162,6 +162,7 @@ youtube_fetcher/
 │   └── youtube/
 │       └── client.go
 └── go.mod
+└── go.sum
 ```
 
 ## Implementation Details
